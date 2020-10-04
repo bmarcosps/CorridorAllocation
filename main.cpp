@@ -7,42 +7,47 @@
 #include <math.h>
 #include <algorithm>
 
-#define CIMA 1
-#define BAIXO -1
+#define TOP 1
+#define BOTTOM -1
 
-#define ALGORITMO 2
-#define GULOSO 1
-#define RANDOMIZADO 2
+#define ALGORITHM 2
+
+#define GREEDY 1
+#define RANDOMIZED 2
 
 #define INF 999999999
 
-typedef struct Sala{
-    unsigned int indice;
-    double posIni, posMeio, posFim;
+typedef struct Room {
+    unsigned int index;
+    double posStart, posMid, posEnd;
 
-    Sala(int index, double x, double y, double z){
-        indice = index;
-        posIni = x;
-        posMeio = y;
-        posFim = z;
+    Room(int index, double x, double y, double z){
+        this->index = index;
+        this->posStart = x;
+        this->posMid = y;
+        this->posEnd = z;
     }
 
-    Sala(){
-        indice = -1;
-        posIni = 0;
-        posMeio = 0;
-        posFim = 0;
+    Room(){
+        this->index = -1;
+        this->posStart = 0;
+        this->posMid = 0;
+        this->posEnd = 0;
     }
-} Sala;
+} Room;
 
-typedef struct Corredor{
-    std::vector<Sala> filaCima;
-    std::vector<Sala> filaBaixo;
-    double custoComunicacao;
-    Corredor(){
-        custoComunicacao = 0;
+typedef struct Corridor{
+    std::vector<Room> roomsTop;
+    std::vector<Room> roomsBottom;
+    double commCost;
+    double sizeTop, sizeBottom;
+
+    Corridor(){
+        commCost = 0;
+        sizeTop = 0;
+        sizeBottom = 0;
     }
-} Corredor;
+} Corridor;
 
 void readInstance(double** rooms, int* numRooms, double*** commMatrix, char* filename){
     std::fstream arq;
@@ -91,31 +96,31 @@ double protectedDiv(double a, double b){
     }
 }
 
-double heuristicaSalas(Sala* salaA, Sala* salaB, double** commMatrix){
-    double dist = fabs(salaA->posMeio - salaB->posMeio) * commMatrix[salaA->indice][salaB->indice];
-    return dist + (protectedDiv(1,fabs(salaA->posMeio - salaB->posMeio)) * commMatrix[salaA->indice][salaB->indice]);
+double heuristicaSalas(Room* salaA, Room* salaB, double** commMatrix){
+    double dist = fabs(salaA->posMid - salaB->posMid) * commMatrix[salaA->index][salaB->index];
+    return dist + (protectedDiv(1,fabs(salaA->posMid - salaB->posMid)) * commMatrix[salaA->index][salaB->index]);
 }
 
-double distanciaSalas(Sala* salaA, Sala* salaB, double** commMatrix){
-    double dist = fabs(salaA->posMeio - salaB->posMeio) * commMatrix[salaA->indice][salaB->indice];
+double distanciaSalas(Room* salaA, Room* salaB, double** commMatrix){
+    double dist = fabs(salaA->posMid - salaB->posMid) * commMatrix[salaA->index][salaB->index];
     return dist;
 }
 
-double custoCommTotal(Corredor* c, double** commMatrix){
+double custoCommTotal(Corridor* c, double** commMatrix){
     double custo = 0;
-    for(int i = 0; i < c->filaCima.size(); i++){
-        for(int j = i+1; j < c->filaCima.size(); j++){
-            custo += distanciaSalas(&c->filaCima[i], &c->filaCima[j], commMatrix);
+    for(int i = 0; i < c->roomsTop.size(); i++){
+        for(int j = i+1; j < c->roomsTop.size(); j++){
+            custo += distanciaSalas(&c->roomsTop[i], &c->roomsTop[j], commMatrix);
         }
 
-        for(int k = 0; k < c->filaBaixo.size(); k++){
-            custo += distanciaSalas(&c->filaCima[i], &c->filaBaixo[k], commMatrix);
+        for(int k = 0; k < c->roomsBottom.size(); k++){
+            custo += distanciaSalas(&c->roomsTop[i], &c->roomsBottom[k], commMatrix);
         }
     }
 
-    for(int i = 0; i < c->filaBaixo.size(); i++) {
-        for (int j = i + 1; j < c->filaBaixo.size(); j++) {
-            custo += distanciaSalas(&c->filaBaixo[i], &c->filaBaixo[j], commMatrix);
+    for(int i = 0; i < c->roomsBottom.size(); i++) {
+        for (int j = i + 1; j < c->roomsBottom.size(); j++) {
+            custo += distanciaSalas(&c->roomsBottom[i], &c->roomsBottom[j], commMatrix);
         }
     }
     return custo;
@@ -156,40 +161,40 @@ int primeiraSala2(int numSalas, double** commMatrix){
     return maiorIndex;
 }
 
-double calculaDistancia(Sala* s, Corredor* c, double** commMatrix){
+double calculaDistancia(Room* s, Corridor* c, double** commMatrix){
     double custo = 0;
-    for(int i = 0; i < c->filaCima.size(); i++){
-        custo += heuristicaSalas(&c->filaCima[i], s, commMatrix);
+    for(auto & i : c->roomsTop){
+        custo += heuristicaSalas(&i, s, commMatrix);
     }
 
-    for(int i = 0; i < c->filaBaixo.size(); i++) {
-        custo += heuristicaSalas(&c->filaBaixo[i], s, commMatrix);
+    for(int i = 0; i < c->roomsBottom.size(); i++) {
+        custo += heuristicaSalas(&c->roomsBottom[i], s, commMatrix);
     }
     return custo;
 }
 
-void ordenaSalas(int corredor, Corredor* c, double* salas, double** commMatrix, int numSalas, bool* salaSolucao, std::vector<std::pair <double, int>>* v){
+void ordenaSalas(int corredor, Corridor* c, double* salas, double** commMatrix, int numSalas, bool* salaSolucao, std::vector<std::pair <double, int>>* v){
     for(int i = 0; i < numSalas; i++){
         if(!salaSolucao[i]) {
-            Sala s;
-            s.indice = i;
+            Room s;
+            s.index = i;
 
-            if(corredor == CIMA){
-                if(c->filaCima.empty()){
-                    s.posIni = 0;
+            if(corredor == TOP){
+                if(c->roomsTop.empty()){
+                    s.posStart = 0;
                 } else {
-                    s.posIni = c->filaCima.back().posFim;
+                    s.posStart = c->roomsTop.back().posEnd;
                 }
             } else {
-                if(c->filaBaixo.empty()){
-                    s.posIni = 0;
+                if(c->roomsBottom.empty()){
+                    s.posStart = 0;
                 } else {
-                    s.posIni = c->filaBaixo.back().posFim;
+                    s.posStart = c->roomsBottom.back().posEnd;
                 }
             }
 
-            s.posFim = s.posIni + salas[i];
-            s.posMeio = s.posIni + (salas[i]/2);
+            s.posEnd = s.posStart + salas[i];
+            s.posMid = s.posStart + (salas[i] / 2);
 
             (*v).emplace_back(std::make_pair(calculaDistancia(&s,c,commMatrix), i));
         }
@@ -201,97 +206,103 @@ void ordenaSalas(int corredor, Corredor* c, double* salas, double** commMatrix, 
 int randomIndex(int start, int end, double alfa){
     return start + (rand() % ((int)(alfa * end)+1));
 }
+int findSmallestSide(Corridor* c){
+    return (c->sizeBottom > c->sizeTop) ? TOP : BOTTOM;
+}
 
-Corredor construirSolucao(double* salas, int numSalas, double** commMatrix, double alfa){
+Corridor buildSolution(double* salas, int numSalas, double** commMatrix, double alfa){
 
-    Corredor *c;
-    c = new Corredor();
+    Corridor *c;
+    c = new Corridor();
 
-    int lado = CIMA;
+    int currentSide = TOP;
 
-    int numSolucao = 0;
-    bool* salaSolucao = new bool[numSalas];
+    int numRoomsInSolution = 0;
+    bool* isRoomInSolution = new bool[numSalas];
 
-    std::vector<std::pair <double, int>> salasOrdenadas;
-    salasOrdenadas.clear();
+    std::vector<std::pair <double, int>> sortedRooms;
+    sortedRooms.clear();
 
     for(int i = 0; i < numSalas; i++){
-        salaSolucao[i] = false;
+        isRoomInSolution[i] = false;
     }
 
     int index = primeiraSala(numSalas, commMatrix);
 
 
-    Sala* s = new Sala();
-    s->indice = index;
-    s->posIni = 0;
-    s->posFim = salas[index];
-    s->posMeio = salas[index]/2;
-    c->filaCima.push_back(*s);
+    Room* s = new Room();
 
-    salaSolucao[index] = true;
-    numSolucao++;
-    while (numSolucao < numSalas){
-        lado *= -1;
-        ordenaSalas(lado, c, salas, commMatrix, numSalas, salaSolucao, &salasOrdenadas);
+    s->index = index;
+    s->posStart = 0;
+    s->posEnd = salas[index];
+    s->posMid = salas[index] / 2;
+    c->roomsTop.push_back(*s);
+    c->sizeBottom = salas[index];
 
-        Sala* s = new Sala;
+    isRoomInSolution[index] = true;
+    numRoomsInSolution++;
+    while (numRoomsInSolution < numSalas){
+        //currentSide *= -1;
+        currentSide = findSmallestSide(c);
+        ordenaSalas(currentSide, c, salas, commMatrix, numSalas, isRoomInSolution, &sortedRooms);
+
+        Room* s = new Room;
         unsigned int indiceSala;
 
-        switch(ALGORITMO){
-            case GULOSO:
+        switch(ALGORITHM){
+            case GREEDY:
                 indiceSala = 0;
                 break;
-            case RANDOMIZADO:
-                indiceSala = randomIndex(0, salasOrdenadas.size(), alfa);
+            case RANDOMIZED:
+                indiceSala = randomIndex(0, sortedRooms.size(), alfa);
                 break;
             default:
                 break;
         }
 
 
-        s->indice = salasOrdenadas[indiceSala].second;
-        if(lado == CIMA){
-            if(c->filaCima.empty()){
-                s->posIni = 0;
+        s->index = sortedRooms[indiceSala].second;
+        if(currentSide == TOP){
+            if(c->roomsTop.empty()){
+                s->posStart = 0;
             } else {
-                s->posIni = c->filaCima.back().posFim;
+                s->posStart = c->roomsTop.back().posEnd;
             }
         } else {
-            if(c->filaBaixo.empty()){
-                s->posIni = 0;
+            if(c->roomsBottom.empty()){
+                s->posStart = 0;
             } else {
-                s->posIni = c->filaBaixo.back().posFim;
+                s->posStart = c->roomsBottom.back().posEnd;
             }
         }
-        s->posFim = s->posIni + salas[s->indice];
-        s->posMeio = s->posIni + (salas[s->indice]/2);
+        s->posEnd = s->posStart + salas[s->index];
+        s->posMid = s->posStart + (salas[s->index] / 2);
 
-        if(lado == CIMA){
-            c->filaCima.push_back(*s);
+        if(currentSide == TOP){
+            c->roomsTop.push_back(*s);
         } else {
-            c->filaBaixo.push_back(*s);
+            c->roomsBottom.push_back(*s);
         }
 
-        //std::cout << "-" << s->posIni << "-" <<std::endl;
-        //std::cout <<  salasOrdenadas[0].second <<std::endl;
-        //std::cout <<  salasOrdenadas[0].first <<std::endl;
+        //std::cout << "-" << s->posStart << "-" <<std::endl;
+        //std::cout <<  sortedRooms[0].second <<std::endl;
+        //std::cout <<  sortedRooms[0].first <<std::endl;
 
-        c->custoComunicacao += salasOrdenadas[indiceSala].first;
-        salaSolucao[s->indice] = true;
-        numSolucao++;
-        salasOrdenadas.clear();
+        c->commCost += sortedRooms[indiceSala].first;
+        isRoomInSolution[s->index] = true;
+        numRoomsInSolution++;
+        sortedRooms.clear();
     }
-    for(int i = 0; i < c->filaCima.size(); i++){
-        std::cout << c->filaCima[i].indice << " ";
+    for(int i = 0; i < c->roomsTop.size(); i++){
+        std::cout << c->roomsTop[i].index << " ";
     }
     std::cout << std::endl;
-    for(int i = 0; i < c->filaBaixo.size(); i++) {
-        std::cout << c->filaBaixo[i].indice << " ";
+    for(int i = 0; i < c->roomsBottom.size(); i++) {
+        std::cout << c->roomsBottom[i].index << " ";
     }
     std::cout << std::endl;
 
-    std::cout << c->custoComunicacao;
+    std::cout << c->commCost;
 
     return (*c);
 }
@@ -301,15 +312,17 @@ Corredor construirSolucao(double* salas, int numSalas, double** commMatrix, doub
 int main(int argc, char** argv) {
     //8
     srand(8);
+
     char* datasetFile = argv[1];
-    double* salas;
-    int numSalas;
+
+    int numRooms;
+    double* rooms;
     double** commMatrix;
 
-    readInstance(&salas, &numSalas, &commMatrix, datasetFile);
+    readInstance(&rooms, &numRooms, &commMatrix, datasetFile);
 
-    for(int i = 0; i < (numSalas); i++){
-        for(int j = 0; j<(numSalas); j++){
+    for(int i = 0; i < (numRooms); i++){
+        for(int j = 0; j<(numRooms); j++){
             std::cout << commMatrix[i][j]<< " ";
         }
         std::cout << std::endl;
@@ -317,7 +330,7 @@ int main(int argc, char** argv) {
 
     std::cout << std::endl;
 
-    Corredor c = construirSolucao( salas, numSalas, commMatrix, 0.3);
+    Corridor c = buildSolution(rooms, numRooms, commMatrix, 0.3);
 
     std::cout << std::endl;
 
