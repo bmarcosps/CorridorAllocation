@@ -6,6 +6,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <sys/time.h>
 
 #define TOP 1
 #define BOTTOM -1
@@ -61,7 +62,7 @@ typedef struct Corridor{
     }
 } Corridor;
 
-void readInstance(double** rooms, int* numRooms, double*** commMatrix, char* filename){
+void readInstance(double** rooms, int* numRooms, double*** commMatrix, const char* filename){
     std::fstream arq;
     std::string line;
 
@@ -154,6 +155,225 @@ double objectiveFunction(Corridor* c, double** commMatrix){
     return custo;
 }
 
+
+Room findRoom(Corridor* c, int roomIndex){
+    double custo = 0;
+    for(int i = 0; i < c->roomsTop.size(); i++) {
+        if(c->roomsTop[i].index == roomIndex){
+            return c->roomsTop[i];
+        }
+    }
+    for(int i = 0; i < c->roomsBottom.size(); i++) {
+        if(c->roomsBottom[i].index == roomIndex){
+            return c->roomsBottom[i];
+        }
+    }
+
+
+    //return NULL;
+}
+
+
+void fixRoomPositions(Corridor* c, double* salas){
+    double pos = 0;
+    for(int i = 0; i < c->roomsTop.size(); i++) {
+        c->roomsTop.at(i).posStart = pos;
+
+        c->roomsTop.at(i).posEnd = pos + salas[c->roomsTop.at(i).index];
+        c->roomsTop.at(i).posMid = pos + (salas[c->roomsTop.at(i).index] / 2);
+        c->roomsTop.at(i).indexAtCorridor = i;
+        c->roomsTop.at(i).side = TOP;
+        pos += salas[c->roomsTop.at(i).index];
+    }
+
+    pos = 0;
+    for(int i = 0; i < c->roomsBottom.size(); i++) {
+        c->roomsBottom.at(i).posStart = pos;
+
+        c->roomsBottom.at(i).posEnd = pos + salas[c->roomsBottom.at(i).index];
+        c->roomsBottom.at(i).posMid = pos + (salas[c->roomsBottom.at(i).index] / 2);
+        c->roomsBottom.at(i).indexAtCorridor = i;
+        c->roomsBottom.at(i).side = BOTTOM;
+        pos += salas[c->roomsBottom.at(i).index];
+    }
+}
+
+void applyMovementMoveRoom(Corridor* c, double* salas, int numSalas, int index_a, int index_b){
+    Room r_a = findRoom(c, index_a);
+    Room r_b = findRoom(c, index_b);
+
+    if(r_a.side == r_b.side){
+        if(r_a.side == TOP){
+
+            c->roomsTop.erase(c->roomsTop.begin() + r_a.indexAtCorridor); // at(r_a.indexAtCorridor) = r_b;
+            c->roomsTop.insert(c->roomsTop.begin() + r_b.indexAtCorridor, r_a);
+
+        } else {
+            c->roomsBottom.erase(c->roomsBottom.begin() + r_a.indexAtCorridor); // at(r_a.indexAtCorridor) = r_b;
+            c->roomsBottom.insert(c->roomsBottom.begin() + r_b.indexAtCorridor, r_a);
+
+        }
+    } else {
+        if(r_a.side == TOP){
+
+            c->roomsTop.erase(c->roomsTop.begin() + r_a.indexAtCorridor); // at(r_a.indexAtCorridor) = r_b;
+            c->roomsBottom.insert(c->roomsBottom.begin() + r_b.indexAtCorridor, r_a);
+
+
+        } else {
+            //c->roomsBottom.assign(r_a.indexAtCorridor, r_b);
+            //c->roomsTop.assign(r_b.indexAtCorridor, r_a);
+            c->roomsBottom.erase(c->roomsBottom.begin() + r_a.indexAtCorridor); // at(r_a.indexAtCorridor) = r_b;
+            c->roomsTop.insert(c->roomsTop.begin() + r_b.indexAtCorridor, r_a);
+
+            //c->roomsBottom.at(r_a.indexAtCorridor) = r_b;
+            //c->roomsTop.at(r_b.indexAtCorridor) = r_a;
+        }
+    }
+
+    fixRoomPositions(c, salas);
+}
+
+void applyMovementSwapRooms(Corridor* c, double* salas, int numSalas, int index_a, int index_b){
+    Room r_a = findRoom(c, index_a);
+    Room r_b = findRoom(c, index_b);
+
+    if(r_a.side == r_b.side){
+        if(r_a.side == TOP){
+            //c->roomsTop.assign(r_a.indexAtCorridor, r_b);
+            //c->roomsTop.assign(r_b.indexAtCorridor, r_a);
+
+            c->roomsTop.at(r_a.indexAtCorridor) = r_b;
+            c->roomsTop.at(r_b.indexAtCorridor) = r_a;
+        } else {
+            //c->roomsBottom.assign(r_a.indexAtCorridor, r_b);
+            //c->roomsBottom.assign(r_b.indexAtCorridor, r_a);
+
+            c->roomsBottom.at(r_a.indexAtCorridor) = r_b;
+            c->roomsBottom.at(r_b.indexAtCorridor) = r_a;
+        }
+    } else {
+        if(r_a.side == TOP){
+            //c->roomsTop.assign(r_a.indexAtCorridor, r_b);
+            //c->roomsBottom.assign(r_b.indexAtCorridor, r_a);
+
+
+            c->roomsTop.at(r_a.indexAtCorridor) = r_b;
+            c->roomsBottom.at(r_b.indexAtCorridor) = r_a;
+        } else {
+            //c->roomsBottom.assign(r_a.indexAtCorridor, r_b);
+            //c->roomsTop.assign(r_b.indexAtCorridor, r_a);
+
+            c->roomsBottom.at(r_a.indexAtCorridor) = r_b;
+            c->roomsTop.at(r_b.indexAtCorridor) = r_a;
+        }
+    }
+
+    fixRoomPositions(c, salas);
+}
+
+// Given a solution, apply movements to explore neighborhood
+Corridor localSearch(double* salas, int numSalas, double** commMatrix, Corridor* c){
+    //int iterations = 1000;
+    //int i = 0;
+    Corridor* bestCorridor = new Corridor();
+    Corridor* localBestCorridor = new Corridor();
+
+    (*bestCorridor) = (*c);
+
+    int index_a = -1;
+    int last_index = -1;
+    do {
+        (*c) = (*bestCorridor);
+        for(int i = 0; i < numSalas; i++){
+            index_a = i;
+            //while(index_a == last_index)
+            //    index_a = randomIndex(0, numSalas-1, 1);
+            //last_index = index_a;
+            //std::cout << index_a << std::endl;
+            for(int j = i; j < numSalas; j++){
+                (*localBestCorridor) = (*c);
+
+                if(j != index_a){
+                    applyMovementMoveRoom(localBestCorridor, salas, numSalas, index_a, j);
+                    objectiveFunction(localBestCorridor, commMatrix);
+                    if(localBestCorridor->commCost < bestCorridor->commCost){
+                        (*bestCorridor) = (*localBestCorridor);
+                    }
+                }
+            }
+        }
+
+        //i++;
+    } while(bestCorridor->commCost - c->commCost != 0 );
+
+    return (*bestCorridor);
+
+}
+
+Corridor localSearchSwap(double* salas, int numSalas, double** commMatrix, Corridor* c){
+    int iterations = 2000;
+    int i = 0;
+    Corridor* bestCorridor = new Corridor();
+    Corridor* localBestCorridor = new Corridor();
+
+    (*bestCorridor) = (*c);
+
+    int index_a = -1;
+    int last_index = -1;
+    do {
+        (*c) = (*bestCorridor);
+        for(int i = 0; i < numSalas/2; i++){
+            //index_a = i;//randomIndex(0, numSalas-1, 1);
+            while(index_a == last_index)
+                index_a = randomIndex(0, numSalas-1, 1);
+            last_index = index_a;
+            for(int j = i; j < numSalas; j++){
+                if(j != index_a){
+                    (*localBestCorridor) = (*c);
+                    applyMovementSwapRooms(localBestCorridor, salas, numSalas, index_a, j);
+                    objectiveFunction(localBestCorridor, commMatrix);
+                    if(localBestCorridor->commCost < bestCorridor->commCost){
+                        (*bestCorridor) = (*localBestCorridor);
+                    }
+                }
+            }
+        }
+
+        //i++;
+    } while(bestCorridor->commCost - c->commCost < 0);
+
+    return (*bestCorridor);
+
+}
+
+void addRoomToCorridor(double* salas, Corridor* c, Room* r, int side){
+    if(side == TOP){
+        if(c->roomsTop.empty()){
+            r->posStart = 0;
+        } else {
+            r->posStart = c->roomsTop.back().posEnd;
+        }
+    } else {
+        if(c->roomsBottom.empty()){
+            r->posStart = 0;
+        } else {
+            r->posStart = c->roomsBottom.back().posEnd;
+        }
+    }
+    r->posEnd = r->posStart + salas[r->index];
+    r->posMid = r->posStart + (salas[r->index] / 2);
+
+    if(side == TOP){
+        c->roomsTop.push_back(*r);
+        c->sizeTop += salas[r->index];
+    } else {
+        c->roomsBottom.push_back(*r);
+        c->sizeBottom += salas[r->index];
+    }
+
+}
+
 int chooseFirstRoom(int numSalas, double* salas, double** commMatrix, int algorithm){
     int index = -1;
     double menorComm = INF;
@@ -198,7 +418,6 @@ int chooseFirstRoom(int numSalas, double* salas, double** commMatrix, int algori
     return index;
 
 }
-
 
 double getHeuristicCost(Room* s, Corridor* c, double** commMatrix){
     double custo = 0;
@@ -333,12 +552,11 @@ Corridor buildSolutionRandomized(double* salas, int numSalas, double** commMatri
         }
 
 
-
         isRoomInSolution[auxRoom->index] = true;
         numRoomsInSolution++;
         sortedRooms.clear();
     }
-
+/*
     std::cout << std::endl;
     for(int i = 0; i < c->roomsTop.size(); i++){
         std::cout << c->roomsTop[i].index << " ";
@@ -348,10 +566,10 @@ Corridor buildSolutionRandomized(double* salas, int numSalas, double** commMatri
         std::cout << c->roomsBottom[i].index << " ";
     }
     std::cout << std::endl;
-
+*/
     objectiveFunction(c, commMatrix);
 
-    std::cout << c->commCost << std::endl;
+    //std::cout << c->commCost << std::endl;
 
     return (*c);
 }
@@ -391,9 +609,9 @@ Corridor buildSolutionRandomizedReactive(double* salas, int numSalas, double** c
 
     }
 
-    for(int iteracao = 1; iteracao < 1000; iteracao++){
+    for(int iteracao = 1; iteracao < 50; iteracao++){
         //imprimeInformacoes(alfas, probAlfa, usoAlfa, param);
-
+        std::cout << iteracao << " ";
 
         float prob = ((float)rand()/(float)(RAND_MAX+1));
         int indiceAtual = 0;
@@ -402,23 +620,18 @@ Corridor buildSolutionRandomizedReactive(double* salas, int numSalas, double** c
             indiceAtual++;
         }
         usoAlfa[indiceAtual]++;
-        //saida << "*******************************" << endl;
-        //saida << "Iteracao " << iteracao << endl;
-        // <<  "Alfa escolhido:  " << alfas[indiceAtual] << endl;
-        //cout << "Alfa = " << alfas[indiceAtual] << endl;
-        //realiza busca construtiva
+
         *c = buildSolutionRandomized( salas, numSalas, commMatrix, alfas[indiceAtual]);
-        //saida << "Número de vértices: " << r[0] << endl;
-        //saida << "Soma dos pesos: " << r[1] << endl;
-        //saida << "*******************************" << endl;
-        //cout << "r[0] = " << r[0] << endl;
-        //cout << "r[1] = " << r[1] << endl;
+        *c = localSearchSwap(salas, numSalas, commMatrix, c);
+        *c = localSearch(salas, numSalas, commMatrix, c);
+
 
         somaSolucoes[indiceAtual] += somaSolucoes[indiceAtual] + c->commCost;
 
         if(c->commCost < bestCorridor->commCost){
             (*bestCorridor) = (*c);
         }
+        std::cout << (*bestCorridor).commCost << std::endl;
         //delete[] r;
         //free(r);
         //r = NULL;
@@ -446,148 +659,6 @@ Corridor buildSolutionRandomizedReactive(double* salas, int numSalas, double** c
 
 }
 
-Room findRoom(Corridor* c, int roomIndex){
-    double custo = 0;
-    for(int i = 0; i < c->roomsTop.size(); i++) {
-        if(c->roomsTop[i].index == roomIndex){
-            return c->roomsTop[i];
-        }
-    }
-    for(int i = 0; i < c->roomsBottom.size(); i++) {
-        if(c->roomsBottom[i].index == roomIndex){
-            return c->roomsBottom[i];
-        }
-    }
-
-    //return NULL;
-}
-
-
-void fixRoomPositions(Corridor* c, double* salas){
-    double pos = 0;
-    for(int i = 0; i < c->roomsTop.size(); i++) {
-        c->roomsTop.at(i).posStart = pos;
-
-        c->roomsTop.at(i).posEnd = pos + salas[c->roomsTop.at(i).index];
-        c->roomsTop.at(i).posMid = pos + (salas[c->roomsTop.at(i).index] / 2);
-        c->roomsTop.at(i).indexAtCorridor = i;
-        c->roomsTop.at(i).side = TOP;
-        pos += salas[c->roomsTop.at(i).index];
-    }
-
-    pos = 0;
-    for(int i = 0; i < c->roomsBottom.size(); i++) {
-        c->roomsBottom.at(i).posStart = pos;
-
-        c->roomsBottom.at(i).posEnd = pos + salas[c->roomsBottom.at(i).index];
-        c->roomsBottom.at(i).posMid = pos + (salas[c->roomsBottom.at(i).index] / 2);
-        c->roomsBottom.at(i).indexAtCorridor = i;
-        c->roomsBottom.at(i).side = BOTTOM;
-        pos += salas[c->roomsBottom.at(i).index];
-    }
-}
-
-void applyMovement(Corridor* c, double* salas, int numSalas, int index_a, int index_b){
-    Room r_a = findRoom(c, index_a);
-    Room r_b = findRoom(c, index_b);
-
-    if(r_a.side == r_b.side){
-        if(r_a.side == TOP){
-            //c->roomsTop.assign(r_a.indexAtCorridor, r_b);
-            //c->roomsTop.assign(r_b.indexAtCorridor, r_a);
-
-            c->roomsTop.at(r_a.indexAtCorridor) = r_b;
-            c->roomsTop.at(r_b.indexAtCorridor) = r_a;
-        } else {
-            //c->roomsBottom.assign(r_a.indexAtCorridor, r_b);
-            //c->roomsBottom.assign(r_b.indexAtCorridor, r_a);
-
-            c->roomsBottom.at(r_a.indexAtCorridor) = r_b;
-            c->roomsBottom.at(r_b.indexAtCorridor) = r_a;
-        }
-    } else {
-        if(r_a.side == TOP){
-            //c->roomsTop.assign(r_a.indexAtCorridor, r_b);
-            //c->roomsBottom.assign(r_b.indexAtCorridor, r_a);
-
-
-            c->roomsTop.at(r_a.indexAtCorridor) = r_b;
-            c->roomsBottom.at(r_b.indexAtCorridor) = r_a;
-        } else {
-            //c->roomsBottom.assign(r_a.indexAtCorridor, r_b);
-            //c->roomsTop.assign(r_b.indexAtCorridor, r_a);
-
-            c->roomsBottom.at(r_a.indexAtCorridor) = r_b;
-            c->roomsTop.at(r_b.indexAtCorridor) = r_a;
-        }
-    }
-
-    fixRoomPositions(c, salas);
-
-
-
-
-}
-
-// Given a solution, apply movements to explore neighborhood
-Corridor localSearch(double* salas, int numSalas, double** commMatrix, Corridor* c){
-    int iterations = 10000;
-    int i = 0;
-    Corridor* bestCorridor = new Corridor();
-    Corridor* localBestCorridor = new Corridor();
-
-    (*bestCorridor) = (*c);
-
-    int index_a, index_b;
-    while(i < iterations){
-        (*c) = (*bestCorridor);
-
-        index_a = randomIndex(0, numSalas-1, 1);
-        //std::cout << index_a << std::endl;
-        for(int j = 0; j < numSalas; j++){
-            (*localBestCorridor) = (*c);
-
-            if(j != index_a){
-                applyMovement(localBestCorridor, salas, numSalas, index_a, j);
-                objectiveFunction(localBestCorridor, commMatrix);
-                if(localBestCorridor->commCost < bestCorridor->commCost){
-                    (*bestCorridor) = (*localBestCorridor);
-                }
-            }
-        }
-        i++;
-    }
-
-    return (*bestCorridor);
-
-}
-
-void addRoomToCorridor(double* salas, Corridor* c, Room* r, int side){
-    if(side == TOP){
-        if(c->roomsTop.empty()){
-            r->posStart = 0;
-        } else {
-            r->posStart = c->roomsTop.back().posEnd;
-        }
-    } else {
-        if(c->roomsBottom.empty()){
-            r->posStart = 0;
-        } else {
-            r->posStart = c->roomsBottom.back().posEnd;
-        }
-    }
-    r->posEnd = r->posStart + salas[r->index];
-    r->posMid = r->posStart + (salas[r->index] / 2);
-
-    if(side == TOP){
-        c->roomsTop.push_back(*r);
-        c->sizeTop += salas[r->index];
-    } else {
-        c->roomsBottom.push_back(*r);
-        c->sizeBottom += salas[r->index];
-    }
-
-}
 
 void testKnownSolution(double* salas, int numSalas, double** commMatrix){
     Corridor* c = new Corridor();
@@ -638,17 +709,25 @@ void testKnownSolution(double* salas, int numSalas, double** commMatrix){
     std::cout << c->commCost << std::endl;
 }
 
+
+
 int main(int argc, char** argv) {
     //8
-    srand(10);
+    //char* datasetFile = argv[1];
+    struct timeval tv;
+    std::string intanceFolder = ".\\instances\\";
+    std::string datasetFile = argv[1];
 
-    char* datasetFile = argv[1];
+    std::string filename = ".\\results\\result_"+ datasetFile +".txt";
+    FILE *f_res = fopen(filename.c_str(), "w");
+
+    double timeStart, timeEnd;
 
     int numRooms;
     double* rooms;
     double** commMatrix;
 
-    readInstance(&rooms, &numRooms, &commMatrix, datasetFile);
+    readInstance(&rooms, &numRooms, &commMatrix, intanceFolder.append(datasetFile).c_str());
 
     for(int i = 0; i < (numRooms); i++){
         for(int j = 0; j<(numRooms); j++){
@@ -657,51 +736,57 @@ int main(int argc, char** argv) {
         std::cout << std::endl;
     }
     //testKnownSolution(rooms, numRooms, commMatrix);
-
     std::cout << std::endl;
-    Corridor solution;
 
-    int algorithm_select = 3;
-    switch(algorithm_select){
-        case GREEDY:
-            solution = buildSolutionRandomized(rooms, numRooms, commMatrix, 0);
-            break;
-        case RANDOMIZED:
-            solution = buildSolutionRandomized(rooms, numRooms, commMatrix, 0.3);
-            break;
-        case REACTIVE:
-            solution = buildSolutionRandomizedReactive(rooms, numRooms, commMatrix, 11, 0, 1, 10);
-            break;
-        default:
-            std::cout << "Invalid selected algorithm" << std::endl;
-            return 0;
+    for(int x = 0; x < 30; x++){
+        std::cout << "( " << x << " ) " << std::endl;
+        srand(x + 55);
+
+
+        Corridor solution;
+
+        gettimeofday(&tv, 0);
+        timeStart = (double)tv.tv_sec + 1.0e-6*(double)tv.tv_usec;
+
+        int algorithm_select = 3;
+        switch(algorithm_select){
+            case GREEDY:
+                solution = buildSolutionRandomized(rooms, numRooms, commMatrix, 0);
+                break;
+            case RANDOMIZED:
+                solution = buildSolutionRandomized(rooms, numRooms, commMatrix, 0.3);
+                break;
+            case REACTIVE:
+                solution = buildSolutionRandomizedReactive(rooms, numRooms, commMatrix, 11, 0, 1, 5);
+                break;
+            default:
+                std::cout << "Invalid selected algorithm" << std::endl;
+                return 0;
+        }
+
+
+        std::cout << objectiveFunction(&solution, commMatrix) << std::endl;
+
+        Corridor local_search_sol = localSearch(rooms, numRooms, commMatrix, &solution);
+
+        gettimeofday(&tv, 0);
+        timeEnd = (double)tv.tv_sec + 1.0e-6*(double)tv.tv_usec;
+
+        std::cout << std::endl;
+        for(int i = 0; i < local_search_sol.roomsTop.size(); i++){
+            std::cout << local_search_sol.roomsTop[i].index << " ";
+        }
+        std::cout << std::endl;
+        for(int i = 0; i < local_search_sol.roomsBottom.size(); i++) {
+            std::cout << local_search_sol.roomsBottom[i].index << " ";
+        }
+        std::cout << std::endl;
+        std::cout << local_search_sol.commCost << std::endl;
+        std::cout << timeEnd-timeStart << std::endl;
+
+        fprintf(f_res, "%f,%f\n", local_search_sol.commCost, timeEnd-timeStart);
+
     }
-
-
-    std::cout << std::endl;
-    for(int i = 0; i < solution.roomsTop.size(); i++){
-        std::cout << solution.roomsTop[i].index << " ";
-    }
-    std::cout << std::endl;
-    for(int i = 0; i < solution.roomsBottom.size(); i++) {
-        std::cout << solution.roomsBottom[i].index << " ";
-    }
-    std::cout << std::endl;
-
-    std::cout << objectiveFunction(&solution, commMatrix) << std::endl;
-
-    Corridor local_search_sol = localSearch(rooms, numRooms, commMatrix, &solution);
-    std::cout << std::endl;
-    for(int i = 0; i < local_search_sol.roomsTop.size(); i++){
-        std::cout << local_search_sol.roomsTop[i].index << " ";
-    }
-    std::cout << std::endl;
-    for(int i = 0; i < local_search_sol.roomsBottom.size(); i++) {
-        std::cout << local_search_sol.roomsBottom[i].index << " ";
-    }
-    std::cout << std::endl;
-    std::cout << local_search_sol.commCost << std::endl;
-
 
 
     return 0;

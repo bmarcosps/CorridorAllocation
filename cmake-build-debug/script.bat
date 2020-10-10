@@ -1,0 +1,1 @@
+FOR /r %%a in (.\instances\*) DO OrgSalas.exe %%~nxa

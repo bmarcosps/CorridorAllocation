@@ -1,0 +1,1 @@
+for /r %%f in (./instances) do @echo %%~nxa >> FilesDirectoryList.txt
