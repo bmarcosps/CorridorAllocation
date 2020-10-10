@@ -6,7 +6,7 @@
 
 #IncludeRegexTransform: 
 
-C:/Users/bruno/CLionProjects/CorridorAllocation/main.cpp
+C:/Users/bruno/Documents/Github/CorridorAllocation/main.cpp
 iostream
 -
 fstream
@@ -19,7 +19,7 @@ list
 -
 vector
 -
-math.h
+cmath
 -
 algorithm
 -
