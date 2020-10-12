@@ -29,14 +29,16 @@ typedef struct Room {
     unsigned int indexAtCorridor;
     int side;
     double posStart, posMid, posEnd;
+    double cost;
 
-    Room(int index, double x, double y, double z, int indexAtCorridor, int side){
+    Room(int index, double x, double y, double z, int indexAtCorridor, int side, double cost){
         this->index = index;
         this->posStart = x;
         this->posMid = y;
         this->posEnd = z;
         this->indexAtCorridor = indexAtCorridor;
         this->side = side;
+        this->cost = cost;
     }
 
     Room(){
@@ -46,6 +48,7 @@ typedef struct Room {
         this->posEnd = 0;
         this->indexAtCorridor = -1;
         this->side = -1;
+        this->cost = 0;
     }
 } Room;
 
@@ -118,9 +121,9 @@ int findSmallestSide(Corridor* c){
 }
 
 double heuristicaSalas(Room* salaA, Room* salaB, double** commMatrix){
-    double dist = fabs(salaA->posMid - salaB->posMid) * commMatrix[salaA->index][salaB->index];
+    //double dist = fabs(salaA->posMid - salaB->posMid) * commMatrix[salaA->index][salaB->index];
     // relação comunicação / inverso da distancia
-    return dist + (protectedDiv(1,fabs(salaA->posMid - salaB->posMid)) * commMatrix[salaA->index][salaB->index]);
+    return (protectedDiv((salaB->posEnd - salaB->posStart),fabs(salaA->posMid - salaB->posMid) * commMatrix[salaA->index][salaB->index]));
 }
 
 double heuristicaComunicacaoPorTamanho(Room* salaA, Room* salaB, double** commMatrix){
@@ -131,6 +134,8 @@ double heuristicaComunicacaoPorTamanho(Room* salaA, Room* salaB, double** commMa
 
 double communicationCost(Room* salaA, Room* salaB, double** commMatrix){
     double dist = fabs(salaA->posMid - salaB->posMid) * commMatrix[salaA->index][salaB->index];
+    salaA->cost += dist;
+    salaB->cost += dist;
     return dist;
 }
 
@@ -182,6 +187,7 @@ void fixRoomPositions(Corridor* c, double* salas){
         c->roomsTop.at(i).posEnd = pos + salas[c->roomsTop.at(i).index];
         c->roomsTop.at(i).posMid = pos + (salas[c->roomsTop.at(i).index] / 2);
         c->roomsTop.at(i).indexAtCorridor = i;
+        c->roomsTop.at(i).cost = 0;
         c->roomsTop.at(i).side = TOP;
         pos += salas[c->roomsTop.at(i).index];
     }
@@ -193,6 +199,7 @@ void fixRoomPositions(Corridor* c, double* salas){
         c->roomsBottom.at(i).posEnd = pos + salas[c->roomsBottom.at(i).index];
         c->roomsBottom.at(i).posMid = pos + (salas[c->roomsBottom.at(i).index] / 2);
         c->roomsBottom.at(i).indexAtCorridor = i;
+        c->roomsBottom.at(i).cost = 0;
         c->roomsBottom.at(i).side = BOTTOM;
         pos += salas[c->roomsBottom.at(i).index];
     }
@@ -200,36 +207,36 @@ void fixRoomPositions(Corridor* c, double* salas){
 
 void applyMovementMoveRoom(Corridor* c, double* salas, int numSalas, int index_a, int index_b){
     Room r_a = findRoom(c, index_a);
-    Room r_b = findRoom(c, index_b);
-
-    if(r_a.side == r_b.side){
-        if(r_a.side == TOP){
-
-            c->roomsTop.erase(c->roomsTop.begin() + r_a.indexAtCorridor); // at(r_a.indexAtCorridor) = r_b;
-            c->roomsTop.insert(c->roomsTop.begin() + r_b.indexAtCorridor, r_a);
-
+    Room r_b;
+    if(index_b < numSalas) {
+        r_b = findRoom(c, index_b);
+        if(r_a.side == r_b.side){
+            if(r_a.side == TOP){
+                c->roomsTop.erase(c->roomsTop.begin() + r_a.indexAtCorridor); // at(r_a.indexAtCorridor) = r_b;
+                c->roomsTop.insert(c->roomsTop.begin() + r_b.indexAtCorridor, r_a);
+            } else {
+                c->roomsBottom.erase(c->roomsBottom.begin() + r_a.indexAtCorridor); // at(r_a.indexAtCorridor) = r_b;
+                c->roomsBottom.insert(c->roomsBottom.begin() + r_b.indexAtCorridor, r_a);
+            }
         } else {
-            c->roomsBottom.erase(c->roomsBottom.begin() + r_a.indexAtCorridor); // at(r_a.indexAtCorridor) = r_b;
-            c->roomsBottom.insert(c->roomsBottom.begin() + r_b.indexAtCorridor, r_a);
-
+            if(r_a.side == TOP){
+                c->roomsTop.erase(c->roomsTop.begin() + r_a.indexAtCorridor); // at(r_a.indexAtCorridor) = r_b;
+                c->roomsBottom.insert(c->roomsBottom.begin() + r_b.indexAtCorridor, r_a);
+            } else {
+                c->roomsBottom.erase(c->roomsBottom.begin() + r_a.indexAtCorridor); // at(r_a.indexAtCorridor) = r_b;
+                c->roomsTop.insert(c->roomsTop.begin() + r_b.indexAtCorridor, r_a);
+            }
         }
     } else {
         if(r_a.side == TOP){
-
             c->roomsTop.erase(c->roomsTop.begin() + r_a.indexAtCorridor); // at(r_a.indexAtCorridor) = r_b;
-            c->roomsBottom.insert(c->roomsBottom.begin() + r_b.indexAtCorridor, r_a);
-
-
+            c->roomsBottom.insert(c->roomsBottom.end() , r_a);
         } else {
-            //c->roomsBottom.assign(r_a.indexAtCorridor, r_b);
-            //c->roomsTop.assign(r_b.indexAtCorridor, r_a);
             c->roomsBottom.erase(c->roomsBottom.begin() + r_a.indexAtCorridor); // at(r_a.indexAtCorridor) = r_b;
-            c->roomsTop.insert(c->roomsTop.begin() + r_b.indexAtCorridor, r_a);
-
-            //c->roomsBottom.at(r_a.indexAtCorridor) = r_b;
-            //c->roomsTop.at(r_b.indexAtCorridor) = r_a;
+            c->roomsTop.insert(c->roomsTop.end(), r_a);
         }
     }
+
 
     fixRoomPositions(c, salas);
 }
@@ -272,9 +279,36 @@ void applyMovementSwapRooms(Corridor* c, double* salas, int numSalas, int index_
     fixRoomPositions(c, salas);
 }
 
+int getWorstCost(Corridor* c, double alfa){
+    double cost = 0;
+    int index = 0;
+    for(int i = 0; i < c->roomsTop.size(); i++) {
+        if(c->roomsTop[i].cost> cost){
+            //float prob = ((float)rand()/(float)(RAND_MAX+1));
+            //if(prob > alfa){
+                index = c->roomsTop[i].index;
+                cost = c->roomsTop[i].cost;
+            //}
+
+        }
+    }
+
+    for(int i = 0; i < c->roomsBottom.size(); i++) {
+        if(c->roomsBottom[i].cost > cost){
+            //float prob = ((float)rand()/(float)(RAND_MAX+1));
+            //if(prob > alfa) {
+                index = c->roomsBottom[i].index;
+                cost = c->roomsBottom[i].cost;
+            //}
+        }
+    }
+    return index;
+}
+
+
 // Given a solution, apply movements to explore neighborhood
 Corridor localSearch(double* salas, int numSalas, double** commMatrix, Corridor* c){
-    //int iterations = 1000;
+    int iterations = 1000;
     //int i = 0;
     Corridor* bestCorridor = new Corridor();
     Corridor* localBestCorridor = new Corridor();
@@ -285,13 +319,13 @@ Corridor localSearch(double* salas, int numSalas, double** commMatrix, Corridor*
     int last_index = -1;
     do {
         (*c) = (*bestCorridor);
-        for(int i = 0; i < numSalas; i++){
-            index_a = i;
+        //for(int i = 0; i < numSalas; i++){
+            index_a = getWorstCost(c, 0);
             //while(index_a == last_index)
             //    index_a = randomIndex(0, numSalas-1, 1);
             //last_index = index_a;
             //std::cout << index_a << std::endl;
-            for(int j = i; j < numSalas; j++){
+            for(int j = 0; j <= numSalas; j++){
                 (*localBestCorridor) = (*c);
 
                 if(j != index_a){
@@ -302,14 +336,15 @@ Corridor localSearch(double* salas, int numSalas, double** commMatrix, Corridor*
                     }
                 }
             }
-        }
+        //}
 
-        //i++;
-    } while(bestCorridor->commCost - c->commCost != 0 );
+        iterations--;
+    } while(bestCorridor->commCost - c->commCost != 0 && iterations > 0);
 
     return (*bestCorridor);
 
 }
+
 
 Corridor localSearchSwap(double* salas, int numSalas, double** commMatrix, Corridor* c){
     int iterations = 2000;
@@ -323,11 +358,12 @@ Corridor localSearchSwap(double* salas, int numSalas, double** commMatrix, Corri
     int last_index = -1;
     do {
         (*c) = (*bestCorridor);
-        for(int i = 0; i < numSalas/2; i++){
-            //index_a = i;//randomIndex(0, numSalas-1, 1);
-            while(index_a == last_index)
-                index_a = randomIndex(0, numSalas-1, 1);
-            last_index = index_a;
+        for(int i = 0; i < numSalas; i++){
+
+            index_a = i;//getWorstCost(c);//randomIndex(0, numSalas-1, 1);
+            //while(index_a == last_index)
+            //    index_a = randomIndex(0, numSalas-1, 1);
+            //last_index = index_a;
             for(int j = i; j < numSalas; j++){
                 if(j != index_a){
                     (*localBestCorridor) = (*c);
@@ -423,11 +459,13 @@ double getHeuristicCost(Room* s, Corridor* c, double** commMatrix){
     double custo = 0;
     //calcula valor da heuristica em relação a todas as salas alocadas
     for(int i = 0; i < c->roomsTop.size(); i++) {
-        custo += heuristicaComunicacaoPorTamanho(&c->roomsTop[i], s, commMatrix);
+        //custo += heuristicaComunicacaoPorTamanho(&c->roomsTop[i], s, commMatrix);
+        custo += heuristicaSalas(&c->roomsTop[i], s, commMatrix);
     }
 
     for(int i = 0; i < c->roomsBottom.size(); i++) {
-        custo += heuristicaComunicacaoPorTamanho(&c->roomsBottom[i], s, commMatrix);
+        //custo += heuristicaComunicacaoPorTamanho(&c->roomsBottom[i], s, commMatrix);
+        custo += heuristicaSalas(&c->roomsBottom[i], s, commMatrix);
     }
     return custo;
 }
@@ -624,7 +662,6 @@ Corridor buildSolutionRandomizedReactive(double* salas, int numSalas, double** c
         *c = buildSolutionRandomized( salas, numSalas, commMatrix, alfas[indiceAtual]);
         *c = localSearchSwap(salas, numSalas, commMatrix, c);
         *c = localSearch(salas, numSalas, commMatrix, c);
-
 
         somaSolucoes[indiceAtual] += somaSolucoes[indiceAtual] + c->commCost;
 
