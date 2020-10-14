@@ -1,4 +1,4 @@
-C:\Users\bruno\AppData\Local\JetBrains\Toolbox\apps\CLion\ch-0\202.6948.80\bin\cmake\win\bin\cmake.exe -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - MinGW Makefiles" C:\Users\bruno\Documents\Github\CorridorAllocation
+C:\Users\bruno\AppData\Local\JetBrains\Toolbox\apps\CLion\ch-0\201.7846.88\bin\cmake\win\bin\cmake.exe -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - MinGW Makefiles" C:\Users\bruno\CLionProjects\CorridorAllocation
 -- Configuring done
 -- Generating done
--- Build files have been written to: C:/Users/bruno/Documents/Github/CorridorAllocation/cmake-build-debug
+-- Build files have been written to: C:/Users/bruno/CLionProjects/CorridorAllocation/cmake-build-debug

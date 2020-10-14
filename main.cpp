@@ -7,6 +7,7 @@
 #include <cmath>
 #include <algorithm>
 #include <sys/time.h>
+#include <numeric>
 
 #define TOP 1
 #define BOTTOM -1
@@ -123,13 +124,17 @@ int findSmallestSide(Corridor* c){
 double heuristicaSalas(Room* salaA, Room* salaB, double** commMatrix){
     //double dist = fabs(salaA->posMid - salaB->posMid) * commMatrix[salaA->index][salaB->index];
     // relação comunicação / inverso da distancia
+    if(salaB->posEnd - salaB->posStart < 0) {
+        std::cout << "ERRO TAMANHO SALA" << std::endl;
+        exit(1);
+    }
     return (protectedDiv((salaB->posEnd - salaB->posStart),fabs(salaA->posMid - salaB->posMid) * commMatrix[salaA->index][salaB->index]));
 }
 
 double heuristicaComunicacaoPorTamanho(Room* salaA, Room* salaB, double** commMatrix){
     double dist = fabs(salaA->posMid - salaB->posMid) * commMatrix[salaA->index][salaB->index];
     // relação comunicação / tamanho da sala
-    return dist/(salaB->posEnd - salaB->posStart);
+    return (salaB->posEnd - salaB->posStart)/dist;
 }
 
 double communicationCost(Room* salaA, Room* salaB, double** commMatrix){
@@ -247,29 +252,20 @@ void applyMovementSwapRooms(Corridor* c, double* salas, int numSalas, int index_
 
     if(r_a.side == r_b.side){
         if(r_a.side == TOP){
-            //c->roomsTop.assign(r_a.indexAtCorridor, r_b);
-            //c->roomsTop.assign(r_b.indexAtCorridor, r_a);
 
             c->roomsTop.at(r_a.indexAtCorridor) = r_b;
             c->roomsTop.at(r_b.indexAtCorridor) = r_a;
         } else {
-            //c->roomsBottom.assign(r_a.indexAtCorridor, r_b);
-            //c->roomsBottom.assign(r_b.indexAtCorridor, r_a);
 
             c->roomsBottom.at(r_a.indexAtCorridor) = r_b;
             c->roomsBottom.at(r_b.indexAtCorridor) = r_a;
         }
     } else {
         if(r_a.side == TOP){
-            //c->roomsTop.assign(r_a.indexAtCorridor, r_b);
-            //c->roomsBottom.assign(r_b.indexAtCorridor, r_a);
-
 
             c->roomsTop.at(r_a.indexAtCorridor) = r_b;
             c->roomsBottom.at(r_b.indexAtCorridor) = r_a;
         } else {
-            //c->roomsBottom.assign(r_a.indexAtCorridor, r_b);
-            //c->roomsTop.assign(r_b.indexAtCorridor, r_a);
 
             c->roomsBottom.at(r_a.indexAtCorridor) = r_b;
             c->roomsTop.at(r_b.indexAtCorridor) = r_a;
@@ -282,27 +278,20 @@ void applyMovementSwapRooms(Corridor* c, double* salas, int numSalas, int index_
 int getWorstCost(Corridor* c, double alfa){
     double cost = 0;
     int index = 0;
+    std::vector<std::pair <double, int>> v;
     for(int i = 0; i < c->roomsTop.size(); i++) {
-        if(c->roomsTop[i].cost> cost){
-            //float prob = ((float)rand()/(float)(RAND_MAX+1));
-            //if(prob > alfa){
-                index = c->roomsTop[i].index;
-                cost = c->roomsTop[i].cost;
-            //}
-
-        }
+        (v).emplace_back(std::make_pair(c->roomsTop[i].cost, c->roomsTop[i].index));
     }
 
     for(int i = 0; i < c->roomsBottom.size(); i++) {
-        if(c->roomsBottom[i].cost > cost){
-            //float prob = ((float)rand()/(float)(RAND_MAX+1));
-            //if(prob > alfa) {
-                index = c->roomsBottom[i].index;
-                cost = c->roomsBottom[i].cost;
-            //}
-        }
+        (v).emplace_back(std::make_pair(c->roomsBottom[i].cost, c->roomsBottom[i].index));
     }
-    return index;
+
+    std::sort((v).begin(), (v).end(), std::greater <>());
+
+    int indiceSala = randomIndex(0, v.size()-1, alfa);
+
+    return v[indiceSala].second;
 }
 
 
@@ -320,11 +309,9 @@ Corridor localSearch(double* salas, int numSalas, double** commMatrix, Corridor*
     do {
         (*c) = (*bestCorridor);
         //for(int i = 0; i < numSalas; i++){
-            index_a = getWorstCost(c, 0);
-            //while(index_a == last_index)
-            //    index_a = randomIndex(0, numSalas-1, 1);
-            //last_index = index_a;
-            //std::cout << index_a << std::endl;
+            index_a = getWorstCost(c, 0.4);
+
+
             for(int j = 0; j <= numSalas; j++){
                 (*localBestCorridor) = (*c);
 
@@ -332,6 +319,7 @@ Corridor localSearch(double* salas, int numSalas, double** commMatrix, Corridor*
                     applyMovementMoveRoom(localBestCorridor, salas, numSalas, index_a, j);
                     objectiveFunction(localBestCorridor, commMatrix);
                     if(localBestCorridor->commCost < bestCorridor->commCost){
+                        std::cout << "Improvement" << std::endl;
                         (*bestCorridor) = (*localBestCorridor);
                     }
                 }
@@ -347,37 +335,44 @@ Corridor localSearch(double* salas, int numSalas, double** commMatrix, Corridor*
 
 
 Corridor localSearchSwap(double* salas, int numSalas, double** commMatrix, Corridor* c){
-    int iterations = 2000;
-    int i = 0;
     Corridor* bestCorridor = new Corridor();
     Corridor* localBestCorridor = new Corridor();
-
+    struct timeval tv;
+    double timeStart, timeEnd;
     (*bestCorridor) = (*c);
-
+    int cont = 0;
     int index_a = -1;
     int last_index = -1;
+    bool improve = false;
     do {
+        improve = false;
         (*c) = (*bestCorridor);
+        //std::vector<int> indexes(numSalas);
+        //std::iota(indexes.begin(), indexes.end(), 0);
+        //gettimeofday(&tv, 0);
+        //timeStart = (double)tv.tv_sec + 1.0e-6*(double)tv.tv_usec;
         for(int i = 0; i < numSalas; i++){
 
-            index_a = i;//getWorstCost(c);//randomIndex(0, numSalas-1, 1);
-            //while(index_a == last_index)
-            //    index_a = randomIndex(0, numSalas-1, 1);
-            //last_index = index_a;
+            index_a = i;
             for(int j = i; j < numSalas; j++){
                 if(j != index_a){
+                    //cont++;
                     (*localBestCorridor) = (*c);
                     applyMovementSwapRooms(localBestCorridor, salas, numSalas, index_a, j);
                     objectiveFunction(localBestCorridor, commMatrix);
+
                     if(localBestCorridor->commCost < bestCorridor->commCost){
                         (*bestCorridor) = (*localBestCorridor);
+                        improve = true;
                     }
                 }
             }
         }
+        //gettimeofday(&tv, 0);
+        //timeEnd = (double)tv.tv_sec + 1.0e-6*(double)tv.tv_usec;
+        //std::cout << timeEnd-timeStart << " " << cont << std::endl;
 
-        //i++;
-    } while(bestCorridor->commCost - c->commCost < 0);
+    } while(improve);
 
     return (*bestCorridor);
 
@@ -755,8 +750,15 @@ int main(int argc, char** argv) {
     std::string intanceFolder = ".\\instances\\";
     std::string datasetFile = argv[1];
 
-    std::string filename = ".\\results\\result_"+ datasetFile +".txt";
+    std::string filename = ".\\results\\2result_"+ datasetFile +".txt";
+    std::string filename_res = ".\\results\\1result_"+ datasetFile +".txt";
+
     FILE *f_res = fopen(filename.c_str(), "w");
+    FILE *f_res_treated = fopen(filename_res.c_str(), "w");
+
+    double best = INF;
+    double mean_best = 0;
+    double mean_time = 0;
 
     double timeStart, timeEnd;
 
@@ -785,7 +787,7 @@ int main(int argc, char** argv) {
         gettimeofday(&tv, 0);
         timeStart = (double)tv.tv_sec + 1.0e-6*(double)tv.tv_usec;
 
-        int algorithm_select = 3;
+        int algorithm_select = 1;
         switch(algorithm_select){
             case GREEDY:
                 solution = buildSolutionRandomized(rooms, numRooms, commMatrix, 0);
@@ -804,7 +806,9 @@ int main(int argc, char** argv) {
 
         std::cout << objectiveFunction(&solution, commMatrix) << std::endl;
 
-        Corridor local_search_sol = localSearch(rooms, numRooms, commMatrix, &solution);
+        //Corridor local_search_sol = localSearchSwap(rooms, numRooms, commMatrix, &solution);
+        Corridor local_search_sol = solution;
+
 
         gettimeofday(&tv, 0);
         timeEnd = (double)tv.tv_sec + 1.0e-6*(double)tv.tv_usec;
@@ -820,10 +824,16 @@ int main(int argc, char** argv) {
         std::cout << std::endl;
         std::cout << local_search_sol.commCost << std::endl;
         std::cout << timeEnd-timeStart << std::endl;
+        if(local_search_sol.commCost < best){
+            best = local_search_sol.commCost;
+        }
+        mean_best += local_search_sol.commCost;
+        mean_time += timeEnd-timeStart;
 
         fprintf(f_res, "%f,%f\n", local_search_sol.commCost, timeEnd-timeStart);
-
     }
+
+    fprintf(f_res_treated, "%f,%f,%f\n", best, mean_best/30, mean_time/30);
 
 
     return 0;
