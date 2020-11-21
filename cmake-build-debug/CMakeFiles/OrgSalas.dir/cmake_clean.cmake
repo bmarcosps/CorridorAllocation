@@ -1,5 +1,7 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/OrgSalas.dir/GACorridor.cpp.obj"
   "CMakeFiles/OrgSalas.dir/main.cpp.obj"
+  "CMakeFiles/OrgSalas.dir/utils.cpp.obj"
   "OrgSalas.exe"
   "OrgSalas.exe.manifest"
   "OrgSalas.pdb"

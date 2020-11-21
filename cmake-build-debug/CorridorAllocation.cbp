@@ -80,7 +80,22 @@
 				</MakeCommands>
 			</Target>
 		</Build>
+		<Unit filename="C:/Users/bruno/CLionProjects/CorridorAllocation/GACorridor.cpp">
+			<Option target="OrgSalas"/>
+		</Unit>
+		<Unit filename="C:/Users/bruno/CLionProjects/CorridorAllocation/GACorridor.h">
+			<Option target="OrgSalas"/>
+		</Unit>
+		<Unit filename="C:/Users/bruno/CLionProjects/CorridorAllocation/constants.h">
+			<Option target="OrgSalas"/>
+		</Unit>
 		<Unit filename="C:/Users/bruno/CLionProjects/CorridorAllocation/main.cpp">
+			<Option target="OrgSalas"/>
+		</Unit>
+		<Unit filename="C:/Users/bruno/CLionProjects/CorridorAllocation/utils.cpp">
+			<Option target="OrgSalas"/>
+		</Unit>
+		<Unit filename="C:/Users/bruno/CLionProjects/CorridorAllocation/utils.h">
 			<Option target="OrgSalas"/>
 		</Unit>
 		<Unit filename="C:/Users/bruno/CLionProjects/CorridorAllocation/CMakeLists.txt">
